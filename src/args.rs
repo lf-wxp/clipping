@@ -12,6 +12,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
   Parse(ParseArgs),
+  Generate(ParseArgs),
 }
 
 #[derive(Args, Debug)]

@@ -12,6 +12,9 @@ fn main() -> Result<()> {
     args::Commands::Parse(args) => {
       parse::parse(args.path)?;
     },
+    args::Commands::Generate(args) => {
+      parse::to_file(args.path);
+    },
   };
   Ok(())
 }
