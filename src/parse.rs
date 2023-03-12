@@ -9,126 +9,14 @@ use nom_unicode::{
   complete::{alpha0, digit0, space0},
   is_alphabetic, is_numeric,
 };
+use std::fs::File;
 use std::io::{self, BufRead, BufReader, Lines};
 use std::path::{Path, PathBuf};
-use std::{fs::{File, create_dir_all}, io::Write };
+
+use crate::{book::Book, clipping::Clipping, shelf::BookShelf, traits::Markdown};
 
 pub type UError = Box<dyn std::error::Error>;
 pub type UResult<T> = std::result::Result<T, UError>;
-#[derive(Debug, PartialEq)]
-pub struct BookShelf {
-  books: Vec<Book>,
-}
-
-impl BookShelf {
-  fn new() -> Self {
-    BookShelf { books: vec![] }
-  }
-
-  fn add_book_and_clipping(&mut self, mut book: Book, clipping: Clipping) {
-    if let Some(i) = self.books.iter().position(|x| x.is_identical(&book)) {
-      self.books[i].add_clipping(clipping)
-    } else {
-      book.add_clipping(clipping);
-      self.books.push(book);
-    }
-  }
-
-  fn to_markdown(&self) -> String {
-    self
-      .books
-      .iter()
-      .map(|x| x.to_markdown())
-      .collect::<Vec<String>>()
-      .join("\r")
-  }
-
-  fn to_file(&self, path: Option<&Path>) {
-    let output_path = match path {
-      Some(path) => path,
-      None => Path::new("./output"),
-    };
-    create_dir_all(output_path).unwrap();
-    self
-      .books
-      .iter()
-      .for_each(|x| x.to_file(&output_path));
-  }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Book {
-  title: String,
-  author: String,
-  clipping: Vec<Clipping>,
-}
-
-impl Book {
-  fn new(title: String, author: String) -> Book {
-    Book {
-      title: title.trim().to_owned(),
-      author: author.trim().to_owned(),
-      clipping: vec![],
-    }
-  }
-  fn add_clipping(&mut self, clipping: Clipping) {
-    self.clipping.push(clipping);
-  }
-
-  fn is_identical(&self, book: &Book) -> bool {
-    self.author == book.author && self.title == book.title
-  }
-  fn to_markdown(&self) -> String {
-    format!(
-      "# {:} \nAuthor: `{:}` \n{:}",
-      self.title,
-      self.author,
-      self
-        .clipping
-        .iter()
-        .map(|x| x.to_markdown())
-        .collect::<Vec<String>>()
-        .join("\r"),
-    )
-  }
-  fn to_file(&self, path: &Path) {
-    let path = path.join(format!("{:}.md", self.title));
-    let mut file = File::create(path).unwrap();
-    write!(file, "{}", self.to_markdown()).unwrap();
-  }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Clipping {
-  date_time: DateTime<Utc>,
-  position: String,
-  clipping: String,
-  mark: Option<String>,
-}
-
-impl Clipping {
-  fn new(
-    clipping: String,
-    position: String,
-    date_time: DateTime<Utc>,
-    mark: Option<String>,
-  ) -> Clipping {
-    Clipping {
-      date_time,
-      position,
-      clipping,
-      mark,
-    }
-  }
-
-  fn to_markdown(&self) -> String {
-    format!(
-      "> &emsp; \n> {:}\n> \n> <p align=\"right\"> {:} </p>\n> &emsp;\n",
-      self.clipping,
-      self.date_time.format("%Y/%m/%d %H:%M:%S")
-    )
-  }
-}
 
 fn read_lines<P>(path: P) -> io::Result<Lines<BufReader<File>>>
 where
@@ -138,7 +26,7 @@ where
   Ok(BufReader::new(file).lines())
 }
 
-pub fn extract_bracket_content(line: &str) -> IResult<&str, &str> {
+fn extract_bracket_content(line: &str) -> IResult<&str, &str> {
   let (line, content) = delimited(tag("("), take_until(")"), tag(")"))(line.trim())?;
   if !line.is_empty() {
     return extract_bracket_content(line);
@@ -146,27 +34,26 @@ pub fn extract_bracket_content(line: &str) -> IResult<&str, &str> {
   Ok((line, content))
 }
 
-pub fn extract_recursive_bracket_content(line: &str) -> IResult<&str, &str> {
+fn extract_recursive_bracket_content(line: &str) -> IResult<&str, &str> {
   delimited(tag("("), take_until("("), tag("("))(line.trim())
 }
 
-pub fn parse_author(line: &str) -> IResult<&str, &str>{
-  extract_bracket_content(line).or(extract_recursive_bracket_content(line))
+fn parse_author(line: &str) -> IResult<&str, &str> {
+  extract_bracket_content(line).or_else(|_| extract_recursive_bracket_content(line))
 }
 
-
-pub fn parse_book<'a>(line: &'a str) -> Result<Book, nom::Err<nom::error::Error<&'a str>>> {
+fn parse_book<'a>(line: &'a str) -> Result<Book, nom::Err<nom::error::Error<&'a str>>> {
   let (line, title) = take_until1("(")(line.trim())?;
   let (_, author) = parse_author(line)?;
   Ok(Book::new(title.to_owned(), author.to_owned()))
 }
 
-pub fn get_number(line: &str) -> Result<(&str, u32), nom::Err<nom::error::Error<&str>>> {
+fn get_number(line: &str) -> Result<(&str, u32), nom::Err<nom::error::Error<&str>>> {
   let (remain, number) = preceded(take_till(is_numeric), digit0)(line)?;
   Ok((remain, number.to_owned().parse::<u32>().unwrap()))
 }
 
-pub fn parse_date_time(line: &str) -> Result<DateTime<Utc>, nom::Err<nom::error::Error<&str>>> {
+fn parse_date_time(line: &str) -> Result<DateTime<Utc>, nom::Err<nom::error::Error<&str>>> {
   let (line, year) = get_number(line)?;
   let (line, month) = get_number(line)?;
   let (line, day) = get_number(line)?;
@@ -190,7 +77,7 @@ pub fn parse_date_time(line: &str) -> Result<DateTime<Utc>, nom::Err<nom::error:
   )
 }
 
-pub fn parse_position_date_time(
+fn parse_position_date_time(
   line: &str,
 ) -> Result<(String, DateTime<Utc>), nom::Err<nom::error::Error<&str>>> {
   let (remain, position) = preceded(take_until("#"), take_till(is_alphabetic))(line)?;
@@ -198,35 +85,42 @@ pub fn parse_position_date_time(
   Ok((position.to_owned(), date_time))
 }
 
-pub fn parse_lines<'a>(
-  lines: &'a Vec<String>,
-  book_shelf: &'a mut BookShelf,
-) -> Result<(), nom::Err<nom::error::Error<&'a str>>> {
+fn parse_lines(
+  lines: &[String],
+) -> Result<(Book, Clipping), nom::Err<nom::error::Error<&str>>> {
   let book = parse_book(&lines[0])?;
   let (position, date_time) = parse_position_date_time(&lines[1])?;
   let clipping = Clipping::new(lines[2].clone(), position, date_time, None);
-  book_shelf.add_book_and_clipping(book, clipping);
-  Ok(())
+  Ok((book, clipping))
 }
 
 pub fn parse(path: PathBuf) -> UResult<BookShelf> {
   let lines = read_lines(path)?;
-  let mut line_vec: Vec<String> = vec![];
   let mut book_shelf = BookShelf::new();
-  lines.for_each(|line| {
-    if let Ok(line) = line {
-      if line == "==========" {
-        return;
-      };
-      if !line.is_empty() {
-        line_vec.push(line);
+  lines
+    .filter(|line| {
+      if let Ok(line) = line {
+        return !line.is_empty();
       }
-      if line_vec.len() == 3 {
-        parse_lines(&line_vec, &mut book_shelf).unwrap();
-        line_vec.clear();
+      false
+    })
+    .fold(vec![Vec::new()], |mut acc, x| {
+      if let Ok(x) = x {
+        if x == "==========" {
+          acc.push(Vec::new());
+        } else {
+          acc.last_mut().unwrap().push(x);
+        }
       }
-    }
-  });
+      acc
+    })
+    .iter()
+    .filter(|x| !x.is_empty())
+    .filter_map(|x| parse_lines(x).ok())
+    .for_each(|x| {
+      let (book, clipping) = x;
+      book_shelf.add_book_and_clipping(book, clipping);
+    });
   Ok(book_shelf)
 }
 

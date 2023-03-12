@@ -1,7 +1,11 @@
 use clap::Parser;
 
 mod args;
+mod book;
+mod clipping;
 mod parse;
+mod shelf;
+mod traits;
 
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -11,10 +15,10 @@ fn main() -> Result<()> {
   match cli.command {
     args::Commands::Parse(args) => {
       parse::parse(args.path)?;
-    },
+    }
     args::Commands::Generate(args) => {
       parse::to_file(args.path);
-    },
+    }
   };
   Ok(())
 }
