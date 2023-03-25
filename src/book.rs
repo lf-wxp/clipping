@@ -27,6 +27,10 @@ impl Book {
   pub fn is_identical(&self, book: &Book) -> bool {
     self.author == book.author && self.title == book.title
   }
+
+  pub fn get_title(&self) -> &str {
+    &self.title
+  }
 }
 
 impl Markdown for Book {

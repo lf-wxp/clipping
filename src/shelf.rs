@@ -1,5 +1,6 @@
-use std::path::{Path};
-use std::fs::create_dir_all;
+use std::fs::{create_dir_all, File};
+use std::io::Write;
+use std::path::Path;
 
 use crate::book::Book;
 use crate::clipping::Clipping;
@@ -8,6 +9,10 @@ use crate::traits::Markdown;
 #[derive(Debug, PartialEq)]
 pub struct BookShelf {
   books: Vec<Book>,
+}
+
+fn remove_whitespace(s: &str) -> String {
+  s.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
 impl BookShelf {
@@ -22,6 +27,43 @@ impl BookShelf {
       book.add_clipping(clipping);
       self.books.push(book);
     }
+  }
+
+  pub fn to_content(&self) -> String {
+    let content = self
+      .books
+      .iter()
+      .map(|x| format!("- [{0}](./{0}.md)", remove_whitespace(x.get_title())))
+      .collect::<Vec<String>>()
+      .join("\n");
+    format!("# Clipping \r\r{}", content)
+  }
+
+  pub fn to_summary(&self) -> String {
+    let content = self
+      .books
+      .iter()
+      .map(|x| {
+        format!(
+          "- [{0}](./clipping/{0}.md)",
+          remove_whitespace(x.get_title())
+        )
+      })
+      .collect::<Vec<String>>()
+      .join("\n  ");
+    format!("- [Clipping](./clipping/index.md) \r  {}", content)
+  }
+
+  pub fn to_content_file(&self, path: &Path) {
+    let path = path.join(format!("{:}.md", "index"));
+    let mut file = File::create(path).unwrap();
+    write!(file, "{}", self.to_content()).unwrap();
+  }
+
+  pub fn to_summary_file(&self, path: &Path) {
+    let path = path.join(format!("{:}.md", "summary"));
+    let mut file = File::create(path).unwrap();
+    write!(file, "{}", self.to_summary()).unwrap();
   }
 }
 
@@ -41,6 +83,8 @@ impl Markdown for BookShelf {
       None => Path::new("./output"),
     };
     create_dir_all(output_path).unwrap();
-    self.books.iter().for_each(|x| x.to_file(Some(&output_path)));
+    self.to_content_file(output_path);
+    self.to_summary_file(output_path);
+    self.books.iter().for_each(|x| x.to_file(Some(output_path)));
   }
 }
