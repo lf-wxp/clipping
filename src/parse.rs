@@ -18,6 +18,10 @@ use crate::{book::Book, clipping::Clipping, shelf::BookShelf, traits::Markdown};
 pub type UError = Box<dyn std::error::Error>;
 pub type UResult<T> = std::result::Result<T, UError>;
 
+pub fn remove_whitespace(s: &str) -> String {
+  s.chars().filter(|c| !c.is_whitespace() && !c.is_ascii_punctuation()).collect()
+}
+
 fn read_lines<P>(path: P) -> io::Result<Lines<BufReader<File>>>
 where
   P: AsRef<Path>,
@@ -44,6 +48,7 @@ fn parse_author(line: &str) -> IResult<&str, &str> {
 
 fn parse_book<'a>(line: &'a str) -> Result<Book, nom::Err<nom::error::Error<&'a str>>> {
   let (line, title) = take_until1("(")(line.trim())?;
+  let (_, title) = take_till(|x| x == '(' || x == '（')(title.trim())?;
   let (_, author) = parse_author(line)?;
   Ok(Book::new(title.to_owned(), author.to_owned()))
 }
@@ -136,11 +141,17 @@ mod tests {
   #[test]
   pub fn test_parse_book() -> UResult<()> {
     let parsed_book = parse_book("乌合之众:大众心理研究 (社会学经典名著) (古斯塔夫·勒宠)")?;
+    let parsed_book1 = parse_book("唐史并不如烟系列（共6册）（知名历史作家魏风华、著名专栏作家李开周联袂推荐！）（严谨的考据，有深度的文笔，写就辉煌的唐朝！） (曲昌春)")?;
     let book = Book::new(
       "乌合之众:大众心理研究".to_owned(),
       "古斯塔夫·勒宠".to_owned(),
     );
+    let book1 = Book::new(
+      "唐史并不如烟系列".to_owned(),
+      "曲昌春".to_owned(),
+    );
     assert_eq!(book, parsed_book);
+    assert_eq!(book1, parsed_book1);
     Ok(())
   }
   #[test]

@@ -3,6 +3,7 @@ use std::{fs::File, io::Write};
 
 use crate::clipping::Clipping;
 use crate::traits::Markdown;
+use crate::parse::remove_whitespace;
 
 #[derive(Debug, PartialEq)]
 pub struct Book {
@@ -14,7 +15,7 @@ pub struct Book {
 impl Book {
   pub fn new(title: String, author: String) -> Book {
     Book {
-      title: title.trim().to_owned(),
+      title: remove_whitespace(title.trim()),
       author: author.trim().to_owned(),
       clipping: vec![],
     }

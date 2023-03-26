@@ -11,10 +11,6 @@ pub struct BookShelf {
   books: Vec<Book>,
 }
 
-fn remove_whitespace(s: &str) -> String {
-  s.chars().filter(|c| !c.is_whitespace()).collect()
-}
-
 impl BookShelf {
   pub fn new() -> Self {
     BookShelf { books: vec![] }
@@ -33,7 +29,7 @@ impl BookShelf {
     let content = self
       .books
       .iter()
-      .map(|x| format!("- [{0}](./{0}.md)", remove_whitespace(x.get_title())))
+      .map(|x| format!("- [{0}](./{0}.md)", x.get_title()))
       .collect::<Vec<String>>()
       .join("\n");
     format!("# Clipping \r\r{}", content)
@@ -43,12 +39,7 @@ impl BookShelf {
     let content = self
       .books
       .iter()
-      .map(|x| {
-        format!(
-          "- [{0}](./clipping/{0}.md)",
-          remove_whitespace(x.get_title())
-        )
-      })
+      .map(|x| format!("- [{0}](./clipping/{0}.md)", x.get_title()))
       .collect::<Vec<String>>()
       .join("\n  ");
     format!("- [Clipping](./clipping/index.md) \r  {}", content)
